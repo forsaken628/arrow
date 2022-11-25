@@ -315,8 +315,10 @@ func (b *RecordBuilder) NewRecord() arrow.Record {
 	}(cols)
 
 	for i, f := range b.fields {
-		cols[i] = f.NewArray()
-		irow := int64(cols[i].Len())
+		arr := f.NewArray()
+		fixNullable(b.schema.Field(i), arr.DataType(), arr)
+		cols[i] = arr
+		irow := int64(arr.Len())
 		if i > 0 && irow != rows {
 			panic(fmt.Errorf("arrow/array: field %d has %d rows. want=%d", i, irow, rows))
 		}
@@ -324,6 +326,62 @@ func (b *RecordBuilder) NewRecord() arrow.Record {
 	}
 
 	return NewRecord(b.schema, cols, rows)
+}
+
+func fixNullable(field arrow.Field, dt arrow.DataType, arr arrow.Array) {
+	if !field.Nullable {
+		if arr.NullN() > 0 {
+			panic(fmt.Errorf("arrow/array: field %s not nullable", field.Name))
+		}
+	}
+
+	switch ft := field.Type.(type) {
+	case *arrow.ListType:
+		values := arr.(*List).ListValues()
+		dt := dt.(*arrow.ListType)
+		if !ft.ElemField().Nullable {
+			if values.NullN() > 0 {
+				panic(fmt.Errorf("arrow/array: field %s not nullable", field.Name))
+			}
+
+			dt.SetElemNullable(false)
+		}
+
+		fixNullable(ft.ElemField(), dt.Elem(), values)
+		fixNullable(ft.ElemField(), values.DataType(), values)
+	case *arrow.FixedSizeListType:
+		values := arr.(*FixedSizeList).ListValues()
+		dt := dt.(*arrow.FixedSizeListType)
+		if !ft.ElemField().Nullable {
+			if values.NullN() > 0 {
+				panic(fmt.Errorf("arrow/array: field %s not nullable", field.Name))
+			}
+
+			dt.SetElemNullable(false)
+		}
+
+		fixNullable(ft.ElemField(), dt.Elem(), values)
+		fixNullable(ft.ElemField(), values.DataType(), values)
+	case *arrow.MapType:
+		items := arr.(*Map).Items()
+		dt := dt.(*arrow.MapType)
+		if !ft.ItemField().Nullable {
+			if items.NullN() > 0 {
+				panic(fmt.Errorf("arrow/array: field %s not nullable", field.Name))
+			}
+			dt.SetItemNullable(false)
+		}
+
+		fixNullable(ft.ItemField(), dt.ItemType(), items)
+		fixNullable(ft.ItemField(), items.DataType(), items)
+	case *arrow.StructType:
+		dt := dt.(*arrow.StructType)
+		for i, fd := range ft.Fields() {
+			farr := arr.(*Struct).Field(i)
+			fixNullable(fd, dt.Field(i).Type, farr)
+			fixNullable(fd, farr.DataType(), farr)
+		}
+	}
 }
 
 // UnmarshalJSON for record builder will read in a single object and add the values
