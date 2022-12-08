@@ -126,26 +126,25 @@ type MapBuilder struct {
 // building using keys in sorted order for each value. The KeysSorted value will just be
 // used when creating the DataType for the map.
 //
-// Example
+// # Example
 //
 // Simple example provided of converting a []map[string]int32 to an array.Map
 // by using a MapBuilder:
 //
-//   /* assume maplist == []map[string]int32 */
-//   bldr := array.NewMapBuilder(memory.DefaultAllocator, arrow.BinaryTypes.String, arrow.PrimitiveTypes.Int32, false)
-//   defer bldr.Release()
-//   kb := bldr.KeyBuilder().(*array.StringBuilder)
-//   ib := bldr.ItemBuilder().(*array.Int32Builder)
-//   for _, m := range maplist {
-//       bldr.Append(true)
-//       for k, v := range m {
-//            kb.Append(k)
-//            ib.Append(v)
-//       }
-//   }
-//   maparr := bldr.NewMapArray()
-//   defer maparr.Release()
-//
+//	/* assume maplist == []map[string]int32 */
+//	bldr := array.NewMapBuilder(memory.DefaultAllocator, arrow.BinaryTypes.String, arrow.PrimitiveTypes.Int32, false)
+//	defer bldr.Release()
+//	kb := bldr.KeyBuilder().(*array.StringBuilder)
+//	ib := bldr.ItemBuilder().(*array.Int32Builder)
+//	for _, m := range maplist {
+//	    bldr.Append(true)
+//	    for k, v := range m {
+//	         kb.Append(k)
+//	         ib.Append(v)
+//	    }
+//	}
+//	maparr := bldr.NewMapArray()
+//	defer maparr.Release()
 func NewMapBuilder(mem memory.Allocator, keytype, itemtype arrow.DataType, keysSorted bool) *MapBuilder {
 	etype := arrow.MapOf(keytype, itemtype)
 	etype.KeysSorted = keysSorted
@@ -256,7 +255,11 @@ func (b *MapBuilder) newData() (data *Data) {
 	values := b.listBuilder.NewListArray()
 	defer values.Release()
 
-	data = NewData(b.etype,
+	dt := values.DataType().(*arrow.StructType)
+	etype := arrow.MapOf(dt.Field(0).Type, dt.Field(1).Type)
+	etype.KeysSorted = b.keysSorted
+
+	data = NewData(etype,
 		values.Len(), values.data.buffers,
 		values.data.childData, values.NullN(), 0)
 	return
