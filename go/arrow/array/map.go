@@ -112,7 +112,7 @@ func arrayEqualMap(left, right *Map) bool {
 type MapBuilder struct {
 	listBuilder *ListBuilder
 
-	etype                   arrow.DataType
+	etype                   *arrow.MapType
 	keytype, itemtype       arrow.DataType
 	keyBuilder, itemBuilder Builder
 	keysSorted              bool
@@ -161,6 +161,23 @@ func NewMapBuilder(mem memory.Allocator, keytype, itemtype arrow.DataType, keysS
 		keytype:     keytype,
 		itemtype:    itemtype,
 		keysSorted:  keysSorted,
+	}
+}
+
+func NewMapBuilderWithType(mem memory.Allocator, dt *arrow.MapType) *MapBuilder {
+	listBldr := NewListBuilder(mem, dt.ValueType())
+	keyBldr := listBldr.ValueBuilder().(*StructBuilder).FieldBuilder(0)
+	keyBldr.Retain()
+	itemBldr := listBldr.ValueBuilder().(*StructBuilder).FieldBuilder(1)
+	itemBldr.Retain()
+	return &MapBuilder{
+		listBuilder: listBldr,
+		keyBuilder:  keyBldr,
+		itemBuilder: itemBldr,
+		etype:       dt,
+		keytype:     dt.KeyType(),
+		itemtype:    dt.ValueType(),
+		keysSorted:  dt.KeysSorted,
 	}
 }
 
@@ -244,6 +261,10 @@ func (b *MapBuilder) NewArray() arrow.Array {
 // NewMapArray creates a new Map array from the memory buffers used by the builder, and
 // resets the builder so it can be used again to build a new Map array.
 func (b *MapBuilder) NewMapArray() (a *Map) {
+	if !b.etype.ItemField().Nullable && b.ItemBuilder().NullN() > 0 {
+		panic("arrow/array: item not nullable")
+	}
+
 	data := b.newData()
 	defer data.Release()
 	a = NewMapData(data)
@@ -255,11 +276,7 @@ func (b *MapBuilder) newData() (data *Data) {
 	values := b.listBuilder.NewListArray()
 	defer values.Release()
 
-	dt := values.DataType().(*arrow.StructType)
-	etype := arrow.MapOf(dt.Field(0).Type, dt.Field(1).Type)
-	etype.KeysSorted = b.keysSorted
-
-	data = NewData(etype,
+	data = NewData(b.etype,
 		values.Len(), values.data.buffers,
 		values.data.childData, values.NullN(), 0)
 	return

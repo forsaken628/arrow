@@ -516,20 +516,19 @@ func (b *baseListBuilder) newData() (data *Data) {
 		offsets = arr.Data().Buffers()[1]
 	}
 
-	var dtype arrow.DataType
+	var f arrow.Field
 	switch dt := b.dt.(type) {
 	case *arrow.ListType:
-		f := dt.ElemField()
-		f.Type = values.DataType()
-		dtype = arrow.ListOfField(f)
+		f = dt.ElemField()
 	case *arrow.LargeListType:
-		f := dt.ElemField()
-		f.Type = values.DataType()
-		dtype = arrow.LargeListOfField(f)
+		f = dt.ElemField()
+	}
+	if !f.Nullable && b.nulls > 0 {
+		panic("")
 	}
 
 	data = NewData(
-		dtype, b.length,
+		b.Type(), b.length,
 		[]*memory.Buffer{
 			b.nullBitmap,
 			offsets,

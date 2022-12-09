@@ -315,10 +315,8 @@ func (b *RecordBuilder) NewRecord() arrow.Record {
 	}(cols)
 
 	for i, f := range b.fields {
-		arr := f.NewArray()
-		fixNullable(b.schema.Field(i), arr)
-		cols[i] = arr
-		irow := int64(arr.Len())
+		cols[i] = f.NewArray()
+		irow := int64(cols[i].Len())
 		if i > 0 && irow != rows {
 			panic(fmt.Errorf("arrow/array: field %d has %d rows. want=%d", i, irow, rows))
 		}
