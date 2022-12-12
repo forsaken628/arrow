@@ -337,17 +337,7 @@ func NewListBuilderWithField(mem memory.Allocator, field arrow.Field) *ListBuild
 }
 
 func (b *baseListBuilder) Type() arrow.DataType {
-	switch dt := b.dt.(type) {
-	case *arrow.ListType:
-		f := dt.ElemField()
-		f.Type = b.values.Type()
-		return arrow.ListOfField(f)
-	case *arrow.LargeListType:
-		f := dt.ElemField()
-		f.Type = b.values.Type()
-		return arrow.LargeListOfField(f)
-	}
-	return nil
+	return b.dt
 }
 
 // NewLargeListBuilder returns a builder, using the provided memory allocator.
@@ -487,6 +477,17 @@ func (b *LargeListBuilder) NewArray() arrow.Array {
 // NewListArray creates a List array from the memory buffers used by the builder and resets the ListBuilder
 // so it can be used to build a new array.
 func (b *ListBuilder) NewListArray() (a *List) {
+	switch dt := b.dt.(type) {
+	case *arrow.ListType:
+		if !dt.ElemField().Nullable && b.nulls > 0 {
+			panic("arrow/array: item not nullable")
+		}
+	case *arrow.LargeListType:
+		if !dt.ElemField().Nullable && b.nulls > 0 {
+			panic("arrow/array: item not nullable")
+		}
+	}
+
 	data := b.newData()
 	a = NewListData(data)
 	data.Release()
@@ -524,7 +525,7 @@ func (b *baseListBuilder) newData() (data *Data) {
 		f = dt.ElemField()
 	}
 	if !f.Nullable && b.nulls > 0 {
-		panic("")
+		panic("arrow/array: item not nullable")
 	}
 
 	data = NewData(

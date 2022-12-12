@@ -220,12 +220,7 @@ func NewStructBuilder(mem memory.Allocator, dtype *arrow.StructType) *StructBuil
 }
 
 func (b *StructBuilder) Type() arrow.DataType {
-	fields := make([]arrow.Field, len(b.fields))
-	copy(fields, b.dtype.(*arrow.StructType).Fields())
-	for i, b := range b.fields {
-		fields[i].Type = b.Type()
-	}
-	return arrow.StructOf(fields...)
+	return b.dtype
 }
 
 // Release decreases the reference count by 1.
@@ -331,22 +326,19 @@ func (b *StructBuilder) NewStructArray() (a *Struct) {
 }
 
 func (b *StructBuilder) newData() (data *Data) {
-	arrs := make([]arrow.ArrayData, len(b.fields))
-	fields := make([]arrow.Field, len(b.fields))
-	copy(fields, b.dtype.(*arrow.StructType).Fields())
+	fields := make([]arrow.ArrayData, len(b.fields))
 	for i, f := range b.fields {
 		arr := f.NewArray()
 		defer arr.Release()
-		arrs[i] = arr.Data()
-		fields[i].Type = arr.DataType()
+		fields[i] = arr.Data()
 	}
 
 	data = NewData(
-		arrow.StructOf(fields...), b.length,
+		b.Type(), b.length,
 		[]*memory.Buffer{
 			b.nullBitmap,
 		},
-		arrs,
+		fields,
 		b.nulls,
 		0,
 	)

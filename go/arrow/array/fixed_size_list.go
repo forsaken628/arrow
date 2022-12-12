@@ -267,7 +267,7 @@ func (b *FixedSizeListBuilder) newData() (data *Data) {
 	defer values.Release()
 
 	data = NewData(
-		arrow.FixedSizeListOf(b.n, values.DataType()), b.length,
+		b.Type(), b.length,
 		[]*memory.Buffer{b.nullBitmap},
 		[]arrow.ArrayData{values.Data()},
 		b.nulls,
