@@ -342,12 +342,17 @@ func (*MapType) Name() string { return "map" }
 
 func (t *MapType) String() string {
 	var o strings.Builder
+	fields := t.value.Elem().(*StructType).Fields()
 	o.WriteString(fmt.Sprintf("map<%s, %s",
-		t.value.Elem().(*StructType).Field(0).Type,
-		t.value.Elem().(*StructType).Field(1).Type))
+		fields[0].Type,
+		fields[1].Type))
 	if t.KeysSorted {
 		o.WriteString(", keys_sorted")
 	}
+	if fields[1].Nullable {
+		o.WriteString(", items_nullable")
+	}
+
 	o.WriteString(">")
 	return o.String()
 }
